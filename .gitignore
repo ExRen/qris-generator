@@ -39,3 +39,22 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# Database
+prisma/dev.db
+prisma/dev.db-journal
+*.db
+*.db-journal
+
+# Sensitive files - DO NOT COMMIT
+tokopedia-cookies.json
+cookies.json
+
+# QRIS images (uploaded by users)
+public/qris/
+
+# Debug screenshots
+debug-*.png
+*.screenshot.png

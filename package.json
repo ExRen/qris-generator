@@ -6,18 +6,31 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "login": "node scripts/login-tokopedia.js",
+    "debug": "node scripts/debug-qris.js",
+    "debug-orders": "node scripts/debug-orders.js"
   },
   "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "canvas": "^3.2.1",
+    "jsqr": "^1.4.0",
     "next": "16.1.1",
+    "prisma": "^5.22.0",
+    "puppeteer": "^24.35.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "react-toastify": "^11.0.5",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/uuid": "^10.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
     "tailwindcss": "^4",

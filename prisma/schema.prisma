@@ -1,0 +1,52 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id        String   @id @default(uuid())
+  url       String   // Tokopedia product URL
+  name      String
+  price     Int
+  imageUrl  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  qris      Qris[]
+}
+
+model Qris {
+  id         String    @id @default(uuid())
+  productId  String
+  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  qrisImage  String    // Path to QRIS image
+  orderId    String?   // Tokopedia order ID
+  amount     Int
+  status     String    @default("pending") // pending, paid, expired, error
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  paidAt     DateTime?
+}
+
+model AdminLog {
+  id        String   @id @default(uuid())
+  action    String
+  message   String
+  level     String   // info, warning, error
+  createdAt DateTime @default(now())
+}
+
+model TokopediaSession {
+  id           String   @id @default(uuid())
+  cookies      String   // JSON string of cookies
+  userAgent    String
+  isValid      Boolean  @default(true)
+  lastUsedAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+}
