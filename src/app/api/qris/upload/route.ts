@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
         const qris = await prisma.qris.create({
             data: {
                 productId: product.id,
-                qrisImage: `/qris/${filename}`,
+                qrisImage: `/api/qris/image/${filename}`,
                 orderId: finalOrderId || qrisData?.transactionId || `MANUAL-${Date.now()}`,
                 amount: finalAmount,
                 expiresAt: expiresAt,
