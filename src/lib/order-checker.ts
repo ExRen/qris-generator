@@ -166,15 +166,7 @@ export async function getPendingOrders(): Promise<PendingOrder[]> {
                 }
             }
 
-            // Deduplicate by amount
-            const unique = new Map<number, { amount: number; deadlineStr: string | null }>();
-            for (const order of results) {
-                if (!unique.has(order.amount)) {
-                    unique.set(order.amount, order);
-                }
-            }
-
-            return Array.from(unique.values());
+            return results;
         });
 
         // Parse deadline strings to Date objects
@@ -396,11 +388,11 @@ export async function checkAndUpdatePayments(): Promise<{ checked: number; updat
         return { checked: 0, updated: 0 };
     }
 
-    // Step 1: Get pending payments
+    // Step 1: Get pending payments (keep all, including duplicates with different deadlines)
     const pendingPayments = await getPendingOrders();
-    const pendingAmounts = new Set(pendingPayments.map(p => p.amount));
+    const pendingAmountsList = pendingPayments.map(p => `Rp${p.amount.toLocaleString()}${p.deadline ? ` (${p.deadline.toLocaleTimeString()})` : ''}`);
 
-    console.log(`Pending amounts in payment-list: ${Array.from(pendingAmounts).map(a => `Rp${a.toLocaleString()}`).join(', ') || 'None'}`);
+    console.log(`Pending amounts in payment-list: ${pendingAmountsList.join(', ') || 'None'}`);
 
     // Step 2: Get processed orders (Diproses status)
     const processedOrders = await getProcessedOrders();
@@ -416,12 +408,29 @@ export async function checkAndUpdatePayments(): Promise<{ checked: number; updat
 
         checked++;
 
-        const isInPendingList = pendingAmounts.has(qris.amount);
+        // Match by amount AND deadline (within 5 minute tolerance)
+        const DEADLINE_TOLERANCE_MS = 5 * 60 * 1000; // 5 minutes
+
+        const matchingPending = pendingPayments.find(p => {
+            if (p.amount !== qris.amount) return false;
+
+            // If both have deadlines, compare them
+            if (p.deadline && qris.expiresAt) {
+                const timeDiff = Math.abs(p.deadline.getTime() - qris.expiresAt.getTime());
+                return timeDiff <= DEADLINE_TOLERANCE_MS;
+            }
+
+            // If only amount matches and no deadline to compare, still consider it a match
+            // This handles cases where deadline wasn't captured
+            return true;
+        });
+
+        const isInPendingList = matchingPending !== undefined;
         const isInProcessedList = processedAmounts.has(qris.amount);
 
         // PAID if: NOT in pending list AND IS in processed list
         if (!isInPendingList && isInProcessedList) {
-            console.log(`✓ Amount Rp ${qris.amount.toLocaleString()} - NOT in pending, IS in processed = PAID`);
+            console.log(`✓ Amount Rp ${qris.amount.toLocaleString()} (expires: ${qris.expiresAt.toLocaleString()}) - NOT in pending, IS in processed = PAID`);
 
             await prisma.qris.update({
                 where: { id: qris.id },
@@ -433,8 +442,15 @@ export async function checkAndUpdatePayments(): Promise<{ checked: number; updat
 
             await logAction('payment_confirmed', `Payment confirmed: ${qris.product?.name || 'QRIS'} - Rp ${qris.amount.toLocaleString()}`, 'info');
             updated++;
+
+            // Remove matched pending from list to avoid matching same Tokopedia order twice
+            if (matchingPending) {
+                const idx = pendingPayments.indexOf(matchingPending);
+                if (idx > -1) pendingPayments.splice(idx, 1);
+            }
         } else if (isInPendingList) {
-            console.log(`○ Amount Rp ${qris.amount.toLocaleString()} - still in pending list`);
+            const deadlineInfo = matchingPending?.deadline ? ` (deadline: ${matchingPending.deadline.toLocaleString()})` : '';
+            console.log(`○ Amount Rp ${qris.amount.toLocaleString()}${deadlineInfo} - still in pending list`);
         } else {
             console.log(`? Amount Rp ${qris.amount.toLocaleString()} - not found in any list`);
         }
