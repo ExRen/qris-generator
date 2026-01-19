@@ -9,6 +9,27 @@ const COOKIES_PATH = path.join(process.cwd(), 'tokopedia-cookies.json');
 const PAYMENT_LIST_URL = 'https://www.tokopedia.com/payment/payment-list?nref=pcside';
 const ORDER_LIST_URL = 'https://www.tokopedia.com/order-list';
 
+// Timeout and retry configuration
+const PAGE_TIMEOUT = 60000; // 60 seconds (increased from 30s)
+const MAX_RETRIES = 2; // Retry up to 2 times on failure
+const RETRY_DELAY = 3000; // Wait 3 seconds between retries
+
+// Mutex to prevent concurrent browser sessions
+let browserLock = false;
+const waitForLock = async (maxWait = 120000): Promise<boolean> => {
+    const start = Date.now();
+    while (browserLock) {
+        if (Date.now() - start > maxWait) {
+            console.log('Timeout waiting for browser lock');
+            return false;
+        }
+        await new Promise(r => setTimeout(r, 1000));
+    }
+    browserLock = true;
+    return true;
+};
+const releaseLock = () => { browserLock = false; };
+
 interface PendingOrder {
     orderId: string;
     amount: number;
@@ -60,10 +81,10 @@ async function createPage() {
 }
 
 /**
- * Get all pending (unpaid) orders from Tokopedia payment-list page
+ * Internal: Get all pending (unpaid) orders from Tokopedia payment-list page
  * Also extracts payment deadline ("Bayar sebelum")
  */
-export async function getPendingOrders(): Promise<PendingOrder[]> {
+async function getPendingOrdersInternal(): Promise<PendingOrder[]> {
     const session = await createPage();
     if (!session) return [];
 
@@ -73,7 +94,7 @@ export async function getPendingOrders(): Promise<PendingOrder[]> {
         console.log('Fetching pending orders from payment-list...');
         await page.goto(PAYMENT_LIST_URL, {
             waitUntil: 'networkidle2',
-            timeout: 30000,
+            timeout: PAGE_TIMEOUT,
         });
 
         await new Promise(r => setTimeout(r, 3000));
@@ -223,10 +244,39 @@ export async function getPendingOrders(): Promise<PendingOrder[]> {
 }
 
 /**
- * Get orders with "Diproses" status from order-list page
+ * Get pending orders with retry logic and mutex lock
+ */
+export async function getPendingOrders(): Promise<PendingOrder[]> {
+    const gotLock = await waitForLock();
+    if (!gotLock) {
+        console.log('Could not acquire browser lock for pending orders');
+        return [];
+    }
+
+    try {
+        for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
+            try {
+                const result = await getPendingOrdersInternal();
+                return result;
+            } catch (error) {
+                console.log(`Attempt ${attempt} failed for getPendingOrders`);
+                if (attempt <= MAX_RETRIES) {
+                    console.log(`Retrying in ${RETRY_DELAY / 1000}s...`);
+                    await new Promise(r => setTimeout(r, RETRY_DELAY));
+                }
+            }
+        }
+        return [];
+    } finally {
+        releaseLock();
+    }
+}
+
+/**
+ * Internal: Get orders with "Diproses" status from order-list page
  * Extracts "Total Belanja" amount, not individual item prices
  */
-export async function getProcessedOrders(): Promise<ProcessedOrder[]> {
+async function getProcessedOrdersInternal(): Promise<ProcessedOrder[]> {
     const session = await createPage();
     if (!session) return [];
 
@@ -236,7 +286,7 @@ export async function getProcessedOrders(): Promise<ProcessedOrder[]> {
         console.log('Fetching processed orders from order-list...');
         await page.goto(ORDER_LIST_URL, {
             waitUntil: 'networkidle2',
-            timeout: 30000,
+            timeout: PAGE_TIMEOUT,
         });
 
         await new Promise(r => setTimeout(r, 3000));
@@ -344,6 +394,35 @@ export async function getProcessedOrders(): Promise<ProcessedOrder[]> {
         console.error('Error fetching processed orders:', error);
         await browser.close();
         return [];
+    }
+}
+
+/**
+ * Get processed orders with retry logic and mutex lock
+ */
+export async function getProcessedOrders(): Promise<ProcessedOrder[]> {
+    const gotLock = await waitForLock();
+    if (!gotLock) {
+        console.log('Could not acquire browser lock for processed orders');
+        return [];
+    }
+
+    try {
+        for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
+            try {
+                const result = await getProcessedOrdersInternal();
+                return result;
+            } catch (error) {
+                console.log(`Attempt ${attempt} failed for getProcessedOrders`);
+                if (attempt <= MAX_RETRIES) {
+                    console.log(`Retrying in ${RETRY_DELAY / 1000}s...`);
+                    await new Promise(r => setTimeout(r, RETRY_DELAY));
+                }
+            }
+        }
+        return [];
+    } finally {
+        releaseLock();
     }
 }
 
