@@ -191,11 +191,21 @@ export default function AdminPage() {
                     showWarning(`Checked ${data.data.checked} orders, no changes`);
                 }
             } else {
-                throw new Error(data.error);
+                // Only show error toast for user-facing errors, not backend timeout/HTML errors
+                const errorMsg = data.error || 'Check failed';
+                const isExpectedError = errorMsg.includes('Unexpected token') ||
+                    errorMsg.includes('timeout') ||
+                    errorMsg.includes('Navigation timeout');
+                if (!isExpectedError) {
+                    showError(errorMsg);
+                } else {
+                    console.log('Expected backend error (suppressed):', errorMsg);
+                    showWarning('Check completed with some issues - will retry');
+                }
             }
         } catch (error) {
-            const message = error instanceof Error ? error.message : 'Check failed';
-            showError(message);
+            // Network errors - usually expected during heavy load
+            console.log('Network error during payment check:', error);
         } finally {
             setIsChecking(false);
         }

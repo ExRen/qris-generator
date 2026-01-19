@@ -13,6 +13,7 @@ const ORDER_LIST_URL = 'https://www.tokopedia.com/order-list';
 const PAGE_TIMEOUT = 60000; // 60 seconds (increased from 30s)
 const MAX_RETRIES = 2; // Retry up to 2 times on failure
 const RETRY_DELAY = 3000; // Wait 3 seconds between retries
+const CHECK_DELAY = 5000; // Wait 5 seconds between sequential checks
 
 // Mutex to prevent concurrent browser sessions
 let browserLock = false;
@@ -472,6 +473,10 @@ export async function checkAndUpdatePayments(): Promise<{ checked: number; updat
     const pendingAmountsList = pendingPayments.map(p => `Rp${p.amount.toLocaleString()}${p.deadline ? ` (${p.deadline.toLocaleTimeString()})` : ''}`);
 
     console.log(`Pending amounts in payment-list: ${pendingAmountsList.join(', ') || 'None'}`);
+
+    // Add delay between checks to avoid rate limiting
+    console.log(`Waiting ${CHECK_DELAY / 1000}s before checking processed orders...`);
+    await new Promise(r => setTimeout(r, CHECK_DELAY));
 
     // Step 2: Get processed orders (Diproses status)
     const processedOrders = await getProcessedOrders();
