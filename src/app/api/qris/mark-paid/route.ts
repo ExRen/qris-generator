@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { logAction } from '@/lib/logger';
 import { ApiResponse } from '@/types';
+import { qrisEvents } from '@/lib/event-emitter';
 
 // POST - Mark QRIS as paid (manual confirmation)
 export async function POST(request: NextRequest) {
@@ -51,6 +52,13 @@ export async function POST(request: NextRequest) {
             `QRIS marked as paid: ${qris.product.name} - Rp ${qris.amount.toLocaleString()}`,
             'info'
         );
+
+        // Emit SSE event for real-time updates
+        qrisEvents.emit('qris_paid', {
+            id: qris.id,
+            productName: qris.product.name,
+            amount: qris.amount,
+        });
 
         return NextResponse.json<ApiResponse<typeof updatedQris>>({
             success: true,

@@ -26,44 +26,56 @@ export default function PublicPage() {
     }
   }, []);
 
-  // Polling for updates
+  // SSE for real-time updates only (no polling)
   useEffect(() => {
     fetchQris();
 
-    // Try SSE for real-time updates
+    // Use SSE for real-time updates
     let eventSource: EventSource | null = null;
-    try {
-      eventSource = new EventSource('/api/events');
+    let reconnectTimeout: NodeJS.Timeout | null = null;
 
-      eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
+    const connectSSE = () => {
+      try {
+        eventSource = new EventSource('/api/events');
 
-          if (data.type === 'qris_paid') {
-            showInfo(`Payment received for ${data.data.productName}`);
-            fetchQris();
-          } else if (data.type === 'qris_expired') {
-            showWarning(`QRIS for ${data.data.productName} has expired`);
-            fetchQris();
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+
+            // Refresh data on any QRIS-related event
+            if (data.type === 'qris_created') {
+              showInfo(`QRIS baru: Rp ${data.data.amount?.toLocaleString() || 0}`);
+              fetchQris();
+            } else if (data.type === 'qris_paid') {
+              showInfo(`Pembayaran diterima: Rp ${data.data.amount?.toLocaleString() || 0}`);
+              fetchQris();
+            } else if (data.type === 'qris_expired') {
+              showWarning(`QRIS expired`);
+              fetchQris();
+            } else if (data.type === 'qris_deleted') {
+              fetchQris();
+            }
+          } catch {
+            // Ignore parse errors
           }
-        } catch {
-          // Ignore parse errors
-        }
-      };
+        };
 
-      eventSource.onerror = () => {
-        eventSource?.close();
-      };
-    } catch {
-      // SSE not supported
-    }
+        eventSource.onerror = () => {
+          eventSource?.close();
+          // Reconnect after 5 seconds on error
+          reconnectTimeout = setTimeout(connectSSE, 5000);
+        };
+      } catch {
+        // SSE not supported, fallback to polling
+        reconnectTimeout = setTimeout(connectSSE, 10000);
+      }
+    };
 
-    // Refresh every 15 seconds
-    const interval = setInterval(fetchQris, 15000);
+    connectSSE();
 
     return () => {
       eventSource?.close();
-      clearInterval(interval);
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
     };
   }, [fetchQris]);
 
@@ -139,8 +151,8 @@ export default function PublicPage() {
                   key={filter}
                   onClick={() => setActiveFilter(filter)}
                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${activeFilter === filter
-                      ? 'bg-purple-600 text-white'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                    ? 'bg-purple-600 text-white'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
                     }`}
                 >
                   {filter === 'active' ? 'Active' : filter === 'expired' ? 'Expired' : 'All'}

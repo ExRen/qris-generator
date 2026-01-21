@@ -29,9 +29,10 @@ export default function QrisCard({ qris, showActions = false, onDelete, onRegene
                 return;
             }
 
-            const minutes = Math.floor(diff / 60000);
+            const hours = Math.floor(diff / 3600000);
+            const minutes = Math.floor((diff % 3600000) / 60000);
             const seconds = Math.floor((diff % 60000) / 1000);
-            setTimeLeft(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+            setTimeLeft(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
         };
 
         calculateTimeLeft();
@@ -70,9 +71,6 @@ export default function QrisCard({ qris, showActions = false, onDelete, onRegene
                 <div className="p-4 border-b border-gray-700/50">
                     <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                            <h3 className="text-lg font-semibold text-white truncate">
-                                {qris.product?.name || 'Unknown Product'}
-                            </h3>
                             <p className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
                                 {formatPrice(qris.amount)}
                             </p>
@@ -168,9 +166,6 @@ export default function QrisCard({ qris, showActions = false, onDelete, onRegene
                             </svg>
                         </button>
 
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">
-                            {qris.product?.name}
-                        </h3>
                         <p className="text-3xl font-bold text-purple-600 mb-4">
                             {formatPrice(qris.amount)}
                         </p>

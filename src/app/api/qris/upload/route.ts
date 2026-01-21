@@ -6,6 +6,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { decodeQrisFromBase64 } from '@/lib/qris-decoder';
 import { findOrderByAmount } from '@/lib/order-checker';
+import { qrisEvents } from '@/lib/event-emitter';
 
 const QRIS_STORAGE_PATH = path.join(process.cwd(), 'public', 'qris');
 
@@ -154,6 +155,13 @@ export async function POST(request: NextRequest) {
             : `QRIS uploaded: ${finalProductName}`;
 
         await logAction('upload_qris', logMessage, 'info');
+
+        // Emit SSE event for real-time updates
+        qrisEvents.emit('qris_created', {
+            id: qris.id,
+            productName: finalProductName,
+            amount: finalAmount,
+        });
 
         // Build response message
         let message = 'QRIS uploaded successfully';
